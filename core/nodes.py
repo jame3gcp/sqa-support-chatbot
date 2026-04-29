@@ -11,10 +11,34 @@ class SQAClient:
         self.vector_db_url = os.getenv('VECTOR_DB_URL')
 
     def call_ai_platform(self, prompt: str) -> str:
-        return '가상 답변: 사내 가이드에 따르면 SonarQube 기준은...'
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "X-Client-ID": "SQA-Chatbot"
+        }
+        payload = {
+            "request_id": os.urandom(8).hex(),
+            "query": prompt,
+            "options": {"temperature": 0.1, "top_p": 0.9}
+        }
+        try:
+            return f"가상 답변 (API 호출 시뮬레이션): 요청한 {prompt[:20]}...에 대한 분석 결과입니다."
+        except Exception as e:
+            return f"API 호출 오류: {str(e)}"
 
     def search_vector_db(self, query: str) -> List[Dict[str, Any]]:
-        return [{'content': 'SonarQube 사용법...', 'metadata': {'filename': 'sonarqube.md'}, 'score': 0.85}]
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        payload = {"search_query": query, "top_k": 3}
+        try:
+            return [
+                {
+                    "content": "SonarQube 상태 및 예외처리 가이드...", 
+                    "metadata": {"filename": "exception_standard.md", "dept": "SQA"}, 
+                    "score": 0.88
+                }
+            ]
+        except Exception:
+            return []
 
 def classify_intent(state: SQAState):
     return {'intent': 'sonarqube', 'confidence': 0.9, 'step_logs': [{'node': 'classify', 'status': 'success'}]}
@@ -28,7 +52,13 @@ def verify_result(state: SQAState):
     return {'is_verified': True, 'step_logs': [{'node': 'verify', 'status': 'success'}]}
 
 def finalize_or_escalate(state: SQAState):
-    if state.get('is_verified'):
-        return {'messages': [AIMessage(content=state['answer_candidate'])]}
+    for log in state.get("step_logs", []):
+        pass
+
+    if state.get("is_verified"):
+        return {"messages": [AIMessage(content=state["answer_candidate"])]}
     else:
-        return {'messages': [AIMessage(content='담당자에게 문의 부탁드립니다.')]}
+        msg = "가이드에서 답변을 찾을 수 없어 SQA 담당자에게 문의 부탁드립니다."
+        if state.get("suggested_topics"):
+            msg += f"\n추천 주제: {', '.join(state['suggested_topics'])}"
+        return {"messages": [AIMessage(content=msg)]}

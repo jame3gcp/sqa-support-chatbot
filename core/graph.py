@@ -25,10 +25,25 @@ def build_graph():
         }
     )
     workflow.add_edge('retrieve_generate', 'verify')
+
+    def route_verification(state: SQAState):
+        if state.get("is_verified"):
+            return "finish"
+        if state.get("retry_count", 0) >= 2:
+            return "escalate"
+        if state.get("confidence", 0) < 0.4:
+            return "ask_more"
+        return "retry"
+
     workflow.add_conditional_edges(
-        'verify',
-        lambda x: 'finish' if x.get('is_verified') or x.get('retry_count', 0) >= 2 else 'retry',
-        {'finish': 'finalize', 'retry': 'retrieve_generate'}
+        "verify",
+        route_verification,
+        {
+            "finish": "finalize",
+            "retry": "retrieve_generate",
+            "ask_more": "finalize",
+            "escalate": "finalize"
+        }
     )
     workflow.add_edge('finalize', END)
     return workflow.compile()
